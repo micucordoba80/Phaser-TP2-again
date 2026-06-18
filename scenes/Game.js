@@ -15,6 +15,7 @@ export default class Game extends Phaser.Scene {
     this.load.tilemapTiledJSON("map", "public/assets/tilemap/map.json");
     this.load.image("tileset", "public/assets/texture.png");
     this.load.image("star", "public/assets/star.png");
+    this.load.image("bomb", "public/assets/bomb.png");
 
     this.load.spritesheet("dude", "./public/assets/dude.png", {
       frameWidth: 32,
@@ -85,11 +86,12 @@ export default class Game extends Phaser.Scene {
     // Create empty group of starts
     this.stars = this.physics.add.group();
 
-    // Create goal/finish point group
-    this.goals = this.physics.add.group();
+    // Create goal/finish point (non-physics sprite)
+    this.goal = null;
 
     // find object layer
     // if type is "stars", add to stars group
+    let goalCreated = false;
     objectsLayer.objects.forEach((objData) => {
       console.log(objData);
       const { x = 0, y = 0, name, type } = objData;
@@ -102,24 +104,27 @@ export default class Game extends Phaser.Scene {
           break;
         }
         case "goal": {
-          // Create goal/finish sprite (using graphics)
-          const goal = this.goals.create(x, y, null);
-          goal.setScale(1.5);
-          
-          // Draw a circle or rectangle to represent the goal
-          const graphics = this.make.graphics({ x: x, y: y, add: true });
-          graphics.fillStyle(0xffff00, 1); // Yellow
-          graphics.fillCircle(0, 0, 16);
-          graphics.strokeStyle(0xff0000, 3); // Red border
-          graphics.strokeCircle(0, 0, 16);
-          graphics.setDepth(0);
-          
-          goal.setDisplayOrigin(16, 16);
-          goal.goalGraphics = graphics;
+          // Create goal/finish sprite with bomb image
+          this.goal = this.physics.add.sprite(x, y, "bomb");
+          this.goal.setScale(1.5);
+          this.goal.setGravityY(-this.physics.world.gravity.y); // Anula la gravedad
+          this.goal.setVelocity(0, 0);
+          this.goal.setCollideWorldBounds(true);
+          goalCreated = true;
           break;
         }
       }
     });
+
+    // If no goal was created from Tiled, create one at a default position
+    if (!goalCreated) {
+      console.log("Goal no encontrado en mapa, creando en posición por defecto");
+      this.goal = this.physics.add.sprite(700, 100, "bomb");
+      this.goal.setScale(1.5);
+      this.goal.setGravityY(-this.physics.world.gravity.y); // Anula la gravedad
+      this.goal.setVelocity(0, 0);
+      this.goal.setCollideWorldBounds(true);
+    }
 
     // add collision between player and stars
     this.physics.add.collider(
@@ -135,7 +140,7 @@ export default class Game extends Phaser.Scene {
     // add overlap between player and goal
     this.physics.add.overlap(
       this.player,
-      this.goals,
+      this.goal,
       this.reachGoal,
       null,
       this
