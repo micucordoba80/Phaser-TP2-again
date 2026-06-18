@@ -5,8 +5,10 @@ export default class Game extends Phaser.Scene {
     super("game");
   }
 
-  init() {
-    this.score = 0;
+  init(data) {
+    // Recibir score de nivel anterior si existe
+    this.score = data.score || 0;
+    this.level = data.level || 1;
   }
 
   preload() {
@@ -83,6 +85,9 @@ export default class Game extends Phaser.Scene {
     // Create empty group of starts
     this.stars = this.physics.add.group();
 
+    // Create goal/finish point group
+    this.goals = this.physics.add.group();
+
     // find object layer
     // if type is "stars", add to stars group
     objectsLayer.objects.forEach((objData) => {
@@ -94,6 +99,23 @@ export default class Game extends Phaser.Scene {
           // console.log("estrella agregada: ", x, y);
           const star = this.stars.create(x, y, "star");
           star.setBounceY(Phaser.Math.FloatBetween(0.4, 0.8));
+          break;
+        }
+        case "goal": {
+          // Create goal/finish sprite (using graphics)
+          const goal = this.goals.create(x, y, null);
+          goal.setScale(1.5);
+          
+          // Draw a circle or rectangle to represent the goal
+          const graphics = this.make.graphics({ x: x, y: y, add: true });
+          graphics.fillStyle(0xffff00, 1); // Yellow
+          graphics.fillCircle(0, 0, 16);
+          graphics.strokeStyle(0xff0000, 3); // Red border
+          graphics.strokeCircle(0, 0, 16);
+          graphics.setDepth(0);
+          
+          goal.setDisplayOrigin(16, 16);
+          goal.goalGraphics = graphics;
           break;
         }
       }
@@ -110,10 +132,62 @@ export default class Game extends Phaser.Scene {
     // add overlap between stars and platform layer
     this.physics.add.collider(this.stars, platformLayer);
 
+    // add overlap between player and goal
+    this.physics.add.overlap(
+      this.player,
+      this.goals,
+      this.reachGoal,
+      null,
+      this
+    );
+
     this.scoreText = this.add.text(16, 16, `Score: ${this.score}`, {
       fontSize: "32px",
       fill: "#000",
     });
+
+    this.levelText = this.add.text(16, 60, `Level: ${this.level}`, {
+      fontSize: "32px",
+      fill: "#000",
+    });
+
+    this.itemsNeededText = this.add.text(16, 104, `Items: 0/5`, {
+      fontSize: "32px",
+      fill: "#000",
+    });
+  }
+
+  reachGoal(player, goal) {
+    const itemsCollected = Math.floor(this.score / 10);
+    
+    // Check if player has collected at least 5 items
+    if (itemsCollected >= 5) {
+      console.log("¡Ganaste el nivel!");
+      // Move to next level
+      this.level += 1;
+      this.scene.restart({ score: this.score, level: this.level });
+    } else {
+      // Show message: need more items
+      const msgText = this.add.text(
+        this.cameras.main.centerX,
+        this.cameras.main.centerY,
+        `Necesitas ${5 - itemsCollected} item${5 - itemsCollected !== 1 ? 's' : ''} más!`,
+        {
+          fontSize: "48px",
+          fill: "#ff0000",
+          backgroundColor: "#ffffff",
+          padding: { x: 20, y: 20 },
+          align: "center",
+        }
+      );
+      msgText.setOrigin(0.5);
+      msgText.setDepth(100);
+      
+      // Remove message after 2 seconds
+      this.time.delayedCall(2000, () => {
+        msgText.destroy();
+      });
+    }
   }
 
   update() {
@@ -146,6 +220,10 @@ export default class Game extends Phaser.Scene {
     star.disableBody(true, true);
 
     this.score += 10;
+    
+    // Update items collected counter
+    const itemsCollected = Math.floor(this.score / 10);
+    this.itemsNeededText.setText(`Items: ${itemsCollected}/5`);
     this.scoreText.setText(`Score: ${this.score}`);
 
     if (this.stars.countActive(true) === 0) {
