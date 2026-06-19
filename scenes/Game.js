@@ -8,7 +8,7 @@ export default class Game extends Phaser.Scene {
   init(data) {
     // Recibir score de nivel anterior si existe
     this.score = data.score || 0;
-    this.level = data.level || 3;
+    this.level = data.level || 1;
     // Reset flag para evitar triggers múltiples
     this.reached = false;
     // Reset item count each level (score is cumulative)
