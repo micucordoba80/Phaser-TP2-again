@@ -8,15 +8,15 @@ export default class Game extends Phaser.Scene {
   init(data) {
     // Recibir score de nivel anterior si existe
     this.score = data.score || 0;
-    this.level = data.level || 2;
+    this.level = data.level || 1;
     // Reset flag para evitar triggers múltiples
     this.reached = false;
   }
 
   preload() {
     this.load.tilemapTiledJSON("map", "public/assets/tilemap/map.json");
-    // Map for level 2 (embedded JSON)
     this.load.tilemapTiledJSON("map2", "public/assets/tilemap/map2.json");
+    this.load.tilemapTiledJSON("map3", "public/assets/tilemap/map3.json");
     this.load.image("tileset", "public/assets/texture.png");
     this.load.image("star", "public/assets/star.png");
     this.load.image("bomb", "public/assets/bomb.png");
@@ -29,7 +29,7 @@ export default class Game extends Phaser.Scene {
   }
 
   create() {
-    const mapKey = this.level === 2 ? "map2" : "map";
+    const mapKey = this.level === 3 ? "map3" : this.level === 2 ? "map2" : "map";
     const map = this.make.tilemap({ key: mapKey });
 
     const tilesetName = map.tilesets && map.tilesets.length ? map.tilesets[0].name : "tileset";
@@ -150,18 +150,23 @@ export default class Game extends Phaser.Scene {
     this.scoreText = this.add.text(16, 16, `Score: ${this.score}`, {
       fontSize: "32px",
       fill: "#000",
-    });
+    }).setScrollFactor(0);
 
     this.levelText = this.add.text(16, 60, `Level: ${this.level}`, {
       fontSize: "32px",
       fill: "#000",
-    });
+    }).setScrollFactor(0);
 
     const itemsCollected = Math.floor(this.score / 10);
     this.itemsNeededText = this.add.text(16, 104, `Items: ${itemsCollected}/5`, {
       fontSize: "32px",
       fill: "#000",
-    });
+    }).setScrollFactor(0);
+
+    this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
+    this.cameras.main.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
+    this.cameras.main.roundPixels = true;
+    this.physics.world.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
   }
   reachGoal(player, goal) {
     // Prevent double-triggering
