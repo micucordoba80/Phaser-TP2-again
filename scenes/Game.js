@@ -8,11 +8,15 @@ export default class Game extends Phaser.Scene {
   init(data) {
     // Recibir score de nivel anterior si existe
     this.score = data.score || 0;
-    this.level = data.level || 1;
+    this.level = data.level || 2;
+    // Reset flag para evitar triggers múltiples
+    this.reached = false;
   }
 
   preload() {
     this.load.tilemapTiledJSON("map", "public/assets/tilemap/map.json");
+    // Map for level 2 (embedded JSON)
+    this.load.tilemapTiledJSON("map2", "public/assets/tilemap/map2.json");
     this.load.image("tileset", "public/assets/texture.png");
     this.load.image("star", "public/assets/star.png");
     this.load.image("bomb", "public/assets/bomb.png");
@@ -21,31 +25,50 @@ export default class Game extends Phaser.Scene {
       frameWidth: 32,
       frameHeight: 48,
     });
+    
   }
 
   create() {
-    const map = this.make.tilemap({ key: "map" });
+    const mapKey = this.level === 2 ? "map2" : "map";
+    const map = this.make.tilemap({ key: mapKey });
 
-    // Parameters are the name you gave the tileset in Tiled and then the key of the tileset image in
-    // Phaser's cache (i.e. the name you used in preload)
-    const tileset = map.addTilesetImage("tileset", "tileset");
+    const tilesetName = map.tilesets && map.tilesets.length ? map.tilesets[0].name : "tileset";
+    const tileset = map.addTilesetImage(tilesetName, "tileset");
 
-    // Parameters: layer name (or index) from Tiled, tileset, x, y
-    const belowLayer = map.createLayer("Fondo", tileset, 0, 0);
-    const platformLayer = map.createLayer("Plataformas", tileset, 0, 0);
-    const objectsLayer = map.getObjectLayer("Objetos");
+    const findTileLayer = (names) => {
+      for (const name of names) {
+        const layer = map.createLayer(name, tileset, 0, 0);
+        if (layer) return layer;
+      }
+      return null;
+    };
 
-    // Find in the Object Layer, the name "dude" and get position
-    const spawnPoint = map.findObject(
-      "Objetos",
-      (obj) => obj.name === "player"
-    );
+    const findObjectLayer = (names) => {
+      for (const name of names) {
+        const layer = map.getObjectLayer(name);
+        if (layer) return layer;
+      }
+      return null;
+    };
+
+    const fondo = findTileLayer(["Fondo", "fondo"]);
+    const platformLayer = findTileLayer(["Plataformas", "plataformas"]);
+    const objectsLayer = findObjectLayer(["Objetos", "Capa de Objetos 1"]);
+
+    if (!objectsLayer) {
+      console.warn("No object layer found with the expected names. Current layers:", map.layers.map((l) => l.name));
+    }
+
+    const spawnPoint = objectsLayer
+      ? map.findObject(objectsLayer.name, (obj) => obj.name === "player")
+      : map.findObject("Objetos", (obj) => obj.name === "player");
     console.log("spawnPoint", spawnPoint);
 
     this.player = this.physics.add.sprite(spawnPoint.x, spawnPoint.y, "dude");
-
-    this.player.setBounce(0.2);
+    if (this.player.body) this.player.body.allowGravity = false;
+    this.player.setBounce(0.1);
     this.player.setCollideWorldBounds(true);
+    this.player.setDrag(600, 600);
 
     this.anims.create({
       key: "left",
@@ -70,81 +93,59 @@ export default class Game extends Phaser.Scene {
     this.cursors = this.input.keyboard.createCursorKeys();
     this.keyR = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R);
 
+    // Set collisions for platform layer. Prefer tile property, fallback to all non-empty tiles.
     platformLayer.setCollisionByProperty({ esColisionable: true });
+    platformLayer.setCollisionByExclusion([-1]);
+
     this.physics.add.collider(this.player, platformLayer);
 
-    // tiles marked as colliding
-    /*
-    const debugGraphics = this.add.graphics().setAlpha(0.75);
-    platformLayer.renderDebug(debugGraphics, {
-      tileColor: null, // Color of non-colliding tiles
-      collidingTileColor: new Phaser.Display.Color(243, 134, 48, 255), // Color of colliding tiles
-      faceColor: new Phaser.Display.Color(40, 39, 37, 255), // Color of colliding face edges
-    });
-    */
+    // Create stars group without gravity so they stay where placed
+    this.stars = this.physics.add.group({ allowGravity: false });
 
-    // Create empty group of starts
-    this.stars = this.physics.add.group();
-
-    // Create goal/finish point (non-physics sprite)
+    // Create goal/finish point
     this.goal = null;
 
-    // find object layer
-    // if type is "stars", add to stars group
     let goalCreated = false;
-    objectsLayer.objects.forEach((objData) => {
-      console.log(objData);
-      const { x = 0, y = 0, name, type } = objData;
-      switch (type) {
-        case "star": {
-          // add star to scene
-          // console.log("estrella agregada: ", x, y);
+    if (objectsLayer && objectsLayer.objects) {
+      objectsLayer.objects.forEach((objData) => {
+        const { x = 0, y = 0, name, type } = objData;
+        if (type === "star") {
           const star = this.stars.create(x, y, "star");
-          star.setBounceY(Phaser.Math.FloatBetween(0.4, 0.8));
-          break;
-        }
-        case "goal": {
-          // Create goal/finish sprite with bomb image
+          if (star.body) {
+            star.body.allowGravity = false;
+            star.setImmovable(true);
+          }
+        } else if (type === "goal") {
           this.goal = this.physics.add.sprite(x, y, "bomb");
           this.goal.setScale(1.5);
-          this.goal.setGravityY(-this.physics.world.gravity.y); // Anula la gravedad
+          this.goal.setGravityY(-this.physics.world.gravity.y);
           this.goal.setVelocity(0, 0);
           this.goal.setCollideWorldBounds(true);
           goalCreated = true;
-          break;
         }
-      }
-    });
+      });
+    } else {
+      console.warn("No object layer found with the expected names");
+    }
 
-    // If no goal was created from Tiled, create one at a default position
     if (!goalCreated) {
-      console.log("Goal no encontrado en mapa, creando en posición por defecto");
       this.goal = this.physics.add.sprite(700, 100, "bomb");
       this.goal.setScale(1.5);
-      this.goal.setGravityY(-this.physics.world.gravity.y); // Anula la gravedad
+      this.goal.setGravityY(-this.physics.world.gravity.y);
       this.goal.setVelocity(0, 0);
       this.goal.setCollideWorldBounds(true);
     }
 
-    // add collision between player and stars
-    this.physics.add.collider(
-      this.player,
-      this.stars,
-      this.collectStar,
-      null,
-      this
-    );
-    // add overlap between stars and platform layer
+    this.physics.add.collider(this.player, this.stars, this.collectStar, null, this);
     this.physics.add.collider(this.stars, platformLayer);
+    this.physics.add.overlap(this.player, this.goal, this.reachGoal, null, this);
 
-    // add overlap between player and goal
-    this.physics.add.overlap(
-      this.player,
-      this.goal,
-      this.reachGoal,
-      null,
-      this
-    );
+    this.stars.children.iterate((child) => {
+      if (child && child.body) {
+        child.originalX = child.x;
+        child.originalY = child.y;
+      }
+    });
 
     this.scoreText = this.add.text(16, 16, `Score: ${this.score}`, {
       fontSize: "32px",
@@ -156,21 +157,34 @@ export default class Game extends Phaser.Scene {
       fill: "#000",
     });
 
-    this.itemsNeededText = this.add.text(16, 104, `Items: 0/5`, {
+    const itemsCollected = Math.floor(this.score / 10);
+    this.itemsNeededText = this.add.text(16, 104, `Items: ${itemsCollected}/5`, {
       fontSize: "32px",
       fill: "#000",
     });
   }
-
   reachGoal(player, goal) {
+    // Prevent double-triggering
+    if (this.reached) {
+      return;
+    }
+
     const itemsCollected = Math.floor(this.score / 10);
-    
+
     // Check if player has collected at least 5 items
     if (itemsCollected >= 5) {
-      console.log("¡Ganaste el nivel!");
-      // Move to next level
+      this.reached = true;
+      console.log("¡Ganaste el nivel!", "Score:", this.score);
+      // Advance level count
       this.level += 1;
-      this.scene.restart({ score: this.score, level: this.level });
+      // Disable player to prevent further input
+      if (this.player && this.player.body) {
+        this.player.body.enable = false;
+      }
+      // Transition to next level with a small delay
+      this.time.delayedCall(500, () => {
+        this.scene.start("game", { score: this.score, level: this.level });
+      });
     } else {
       // Show message: need more items
       const msgText = this.add.text(
@@ -187,7 +201,7 @@ export default class Game extends Phaser.Scene {
       );
       msgText.setOrigin(0.5);
       msgText.setDepth(100);
-      
+
       // Remove message after 2 seconds
       this.time.delayedCall(2000, () => {
         msgText.destroy();
@@ -196,27 +210,41 @@ export default class Game extends Phaser.Scene {
   }
 
   update() {
-    // update game objects
+    // update game objects - 4-direction walking (no jump)
+    const speed = 160;
+    let vx = 0;
+    let vy = 0;
+
     if (this.cursors.left.isDown) {
-      this.player.setVelocityX(-160);
-
-      this.player.anims.play("left", true);
+      vx = -speed;
     } else if (this.cursors.right.isDown) {
-      this.player.setVelocityX(160);
-
-      this.player.anims.play("right", true);
-    } else {
-      this.player.setVelocityX(0);
-
-      this.player.anims.play("turn");
+      vx = speed;
     }
 
     if (this.cursors.up.isDown) {
-      this.player.setVelocityY(-330);
+      vy = -speed;
+    } else if (this.cursors.down.isDown) {
+      vy = speed;
+    }
+
+    // normalize diagonal movement
+    if (vx !== 0 && vy !== 0) {
+      vx *= Math.SQRT1_2; // 1/sqrt(2)
+      vy *= Math.SQRT1_2;
+    }
+
+    this.player.setVelocity(vx, vy);
+
+    // animations
+    if (vx < 0) {
+      this.player.anims.play("left", true);
+    } else if (vx > 0) {
+      this.player.anims.play("right", true);
+    } else {
+      this.player.anims.play("turn");
     }
 
     if (Phaser.Input.Keyboard.JustDown(this.keyR)) {
-      console.log("Phaser.Input.Keyboard.JustDown(this.keyR)");
       this.scene.restart();
     }
   }
@@ -231,11 +259,6 @@ export default class Game extends Phaser.Scene {
     this.itemsNeededText.setText(`Items: ${itemsCollected}/5`);
     this.scoreText.setText(`Score: ${this.score}`);
 
-    if (this.stars.countActive(true) === 0) {
-      //  A new batch of stars to collect
-      this.stars.children.iterate(function (child) {
-        child.enableBody(true, child.x, 0, true, true);
-      });
-    }
+    // No reappear stars in the same level. Stars should only reset on level change.
   }
 }

@@ -1,12 +1,4 @@
 { "compressionlevel":-1,
- "editorsettings":
-    {
-     "export":
-        {
-         "format":"json",
-         "target":"map2.json"
-        }
-    },
  "height":24,
  "infinite":false,
  "layers":[
@@ -191,7 +183,16 @@
  "tilesets":[
         {
          "firstgid":1,
-         "source":"..\/tileset.tsx"
+         "name":"tileset",
+         "tilewidth":30,
+         "tileheight":30,
+         "image":"..\/texture.png",
+         "imagewidth":800,
+         "imageheight":680,
+         "columns":26,
+         "tilecount":572,
+         "margin":0,
+         "spacing":0
         }],
  "tilewidth":30,
  "type":"map",
