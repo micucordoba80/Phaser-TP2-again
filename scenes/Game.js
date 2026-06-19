@@ -8,9 +8,11 @@ export default class Game extends Phaser.Scene {
   init(data) {
     // Recibir score de nivel anterior si existe
     this.score = data.score || 0;
-    this.level = data.level || 1;
+    this.level = data.level || 3;
     // Reset flag para evitar triggers múltiples
     this.reached = false;
+    // Reset item count each level (score is cumulative)
+    this.itemsCollected = 0;
   }
 
   preload() {
@@ -157,8 +159,8 @@ export default class Game extends Phaser.Scene {
       fill: "#000",
     }).setScrollFactor(0);
 
-    const itemsCollected = Math.floor(this.score / 10);
-    this.itemsNeededText = this.add.text(16, 104, `Items: ${itemsCollected}/5`, {
+    this.itemsCollected = 0;
+    this.itemsNeededText = this.add.text(16, 104, `Items: ${this.itemsCollected}/5`, {
       fontSize: "32px",
       fill: "#000",
     }).setScrollFactor(0);
@@ -174,24 +176,103 @@ export default class Game extends Phaser.Scene {
       return;
     }
 
-    const itemsCollected = Math.floor(this.score / 10);
+    const itemsCollected = this.itemsCollected;
 
     // Check if player has collected at least 5 items
     if (itemsCollected >= 5) {
       this.reached = true;
-      console.log("¡Ganaste el nivel!", "Score:", this.score);
-      // Advance level count
-      this.level += 1;
-      // Disable player to prevent further input
-      if (this.player && this.player.body) {
-        this.player.body.enable = false;
+      if (this.level >= 3) {
+        console.log("¡Ganaste el juego!", "Score:", this.score);
+        if (this.player && this.player.body) {
+          this.player.body.enable = false;
+          this.player.setVelocity(0, 0);
+          this.player.body.moves = false;
+        }
+
+        const overlay = this.add.rectangle(
+          this.cameras.main.centerX,
+          this.cameras.main.centerY,
+          900,
+          320,
+          0x000000,
+          0.75
+        );
+        overlay.setOrigin(0.5);
+        overlay.setDepth(90);
+        overlay.setScrollFactor(0);
+
+        const winText = this.add.text(
+          this.cameras.main.centerX,
+          this.cameras.main.centerY - 80,
+          "¡Ganaste el juego!",
+          {
+            fontSize: "72px",
+            fill: "#7ee9a7",
+            stroke: "#000000",
+            strokeThickness: 10,
+            align: "center",
+          }
+        );
+        winText.setOrigin(0.5);
+        winText.setDepth(100);
+        winText.setScrollFactor(0);
+
+        const scoreText = this.add.text(
+          this.cameras.main.centerX,
+          this.cameras.main.centerY + 10,
+          `Puntaje final: ${this.score}`,
+          {
+            fontSize: "36px",
+            fill: "#ffffff",
+            stroke: "#000000",
+            strokeThickness: 5,
+            align: "center",
+          }
+        );
+        scoreText.setOrigin(0.5);
+        scoreText.setDepth(100);
+        scoreText.setScrollFactor(0);
+
+        let countdown = 3;
+        const restartText = this.add.text(
+          this.cameras.main.centerX,
+          this.cameras.main.centerY + 85,
+          `Reiniciando en ${countdown}...`,
+          {
+            fontSize: "34px",
+            fill: "#ffffff",
+            stroke: "#000000",
+            strokeThickness: 5,
+            align: "center",
+          }
+        );
+        restartText.setOrigin(0.5);
+        restartText.setDepth(100);
+        restartText.setScrollFactor(0);
+
+        this.time.addEvent({
+          delay: 1000,
+          repeat: 2,
+          callback: () => {
+            countdown -= 1;
+            restartText.setText(`Reiniciando en ${countdown}...`);
+          },
+        });
+
+        this.time.delayedCall(3000, () => {
+          this.scene.start("game", { score: 0, level: 1 });
+        });
+      } else {
+        console.log("¡Ganaste el nivel!", "Score:", this.score);
+        this.level += 1;
+        if (this.player && this.player.body) {
+          this.player.body.enable = false;
+        }
+        this.time.delayedCall(500, () => {
+          this.scene.start("game", { score: this.score, level: this.level });
+        });
       }
-      // Transition to next level with a small delay
-      this.time.delayedCall(500, () => {
-        this.scene.start("game", { score: this.score, level: this.level });
-      });
     } else {
-      // Show message: need more items
       const msgText = this.add.text(
         this.cameras.main.centerX,
         this.cameras.main.centerY,
@@ -207,7 +288,6 @@ export default class Game extends Phaser.Scene {
       msgText.setOrigin(0.5);
       msgText.setDepth(100);
 
-      // Remove message after 2 seconds
       this.time.delayedCall(2000, () => {
         msgText.destroy();
       });
@@ -258,10 +338,8 @@ export default class Game extends Phaser.Scene {
     star.disableBody(true, true);
 
     this.score += 10;
-    
-    // Update items collected counter
-    const itemsCollected = Math.floor(this.score / 10);
-    this.itemsNeededText.setText(`Items: ${itemsCollected}/5`);
+    this.itemsCollected += 1;
+    this.itemsNeededText.setText(`Items: ${this.itemsCollected}/5`);
     this.scoreText.setText(`Score: ${this.score}`);
 
     // No reappear stars in the same level. Stars should only reset on level change.
