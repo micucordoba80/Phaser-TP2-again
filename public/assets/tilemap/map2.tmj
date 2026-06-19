@@ -37,7 +37,7 @@
             0, 82, 82, 82, 82, 82, 82, 82, 82, 82, 82, 82, 82, 82, 82, 82, 82, 82, 82, 82, 82, 82, 82, 82],
          "height":24,
          "id":3,
-         "name":"fondo",
+         "name":"Fondo",
          "opacity":1,
          "type":"tilelayer",
          "visible":true,
@@ -72,7 +72,7 @@
             523, 524, 524, 524, 524, 524, 524, 524, 524, 524, 524, 524, 524, 524, 524, 524, 524, 524, 524, 524, 524, 524, 524, 524],
          "height":24,
          "id":1,
-         "name":"plataformas",
+         "name":"Plataformas",
          "opacity":1,
          "type":"tilelayer",
          "visible":true,
@@ -83,7 +83,7 @@
         {
          "draworder":"topdown",
          "id":2,
-         "name":"Capa de Objetos 1",
+         "name":"Objetos",
          "objects":[
                 {
                  "height":0,
